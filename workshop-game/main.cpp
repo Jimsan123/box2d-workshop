@@ -43,6 +43,25 @@ void MouseButtonCallback(GLFWwindow* window, int32 button, int32 action, int32 m
     // now convert this position to Box2D world coordinates
     b2Vec2 pw = g_camera.ConvertScreenToWorld(ps);
 
+    if (action == GLFW_RELEASE) {
+        printf("\nSpawn box");
+        b2Body* box;
+        b2PolygonShape box_shape;
+        box_shape.SetAsBox(1.0f, 1.0f);
+        b2FixtureDef box_fd;
+        box_fd.shape = &box_shape;
+        box_fd.density = 20.0f;
+        box_fd.friction = 0.1f;
+        b2BodyDef box_bd;
+        box_bd.type = b2_dynamicBody;
+        box_bd.position.Set(pw.x, pw.y);
+        box_bd.gravityScale = 1;
+        //box_bd.angularVelocity = 5;
+        //box_bd.linearVelocity = { 5, 0 };
+        box = g_world->CreateBody(&box_bd);
+        box->CreateFixture(&box_fd);
+    }
+
 }
 
 int main()
@@ -101,9 +120,30 @@ int main()
     box_fd.friction = 0.1f;
     b2BodyDef box_bd;
     box_bd.type = b2_dynamicBody;
-    box_bd.position.Set(-5.0f, 11.25f);
+    box_bd.position.Set(-10.0f, 10.0f);
+    box_bd.gravityScale = 1;
+    box_bd.angularVelocity = 5;
+    box_bd.linearVelocity = { 5, 0 };
     box = g_world->CreateBody(&box_bd);
     box->CreateFixture(&box_fd);
+
+    // dominos 
+    b2PolygonShape shape;
+    shape.SetAsBox(0.1f, 1.0f);
+
+    b2FixtureDef fd;
+    fd.shape = &shape;
+    fd.density = 20.0f;
+    fd.friction = 0.1f;
+
+    for (int i = 0; i < 40; ++i)
+    {
+        b2BodyDef bd;
+        bd.type = b2_dynamicBody;
+        bd.position.Set(10.0f + 1.0f * i, 1.25f);
+        b2Body* body = g_world->CreateBody(&bd);
+        body->CreateFixture(&fd);
+    }
 
 
     // This is the color of our background in RGB components
