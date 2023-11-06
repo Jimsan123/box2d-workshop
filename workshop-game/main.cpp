@@ -49,6 +49,10 @@ public:
     const void toDelete() {
         toBeDeleted = true;
     }
+    void Jump(float force) {
+        std::cout << "Jump with force " << force << "\n";
+        this->body->ApplyForceToCenter({0, force}, true);
+    }
     void OnCollision(Character* other)
     {
         std::cout << "Two colliding objects size " << this->size << " and size " << other->size << "\n";
@@ -56,10 +60,6 @@ public:
             this->toDelete();
             std::cout << "Delete this object" << "\n";
         }
-        //else {
-        //    other->toDelete();
-        //    std::cout << "Delete other object" << "\n";
-        //}
     }
     virtual ~Character()
     {
@@ -96,6 +96,18 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 {
     // code for keys here https://www.glfw.org/docs/3.3/group__keys.html
     // and modifiers https://www.glfw.org/docs/3.3/group__mods.html
+    if (action == GLFW_PRESS) {
+        // Handle key press
+        std::cout << "Key pressed" << action << "\n";
+
+        if (key == GLFW_KEY_SPACE) {
+            std::cout << "Clicked space" << "\n";
+            for (auto& box : vecBoxes) {
+                Character* thisPtr = box.get();
+                thisPtr->Jump(2000);
+            }
+        }
+    }
 }
 
 void MouseMotionCallback(GLFWwindow*, double xd, double yd)
@@ -130,7 +142,6 @@ void MouseButtonCallback(GLFWwindow* window, int32 button, int32 action, int32 m
         int randomValue = distribution(generator);
         vecBoxes.emplace_back(std::make_unique<Character>(randomValue, pw.x, pw.y));
     }
-
 }
 
 int main()
