@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <chrono>
 #include <thread>
+#include <vector>
 
 #include "imgui/imgui.h"
 #include "imgui_impl_glfw_game.h"
@@ -11,11 +12,85 @@
 #include "draw_game.h"
 
 #include "box2d/box2d.h"
+#include <iostream>
+#include <random>
 
 // GLFW main window pointer
 GLFWwindow* g_mainWindow = nullptr;
 
 b2World* g_world;
+
+class Character;
+
+std::vector<std::unique_ptr<Character>> vecBoxes;
+
+class Character {
+public:
+    Character(int p_size, float x, float y)
+    {
+        size = p_size;
+        // construct the body of our character
+        b2PolygonShape box_shape;
+        box_shape.SetAsBox(size / 500.0f, size / 500.0f);
+        b2FixtureDef box_fd;
+        box_fd.shape = &box_shape;
+        box_fd.density = 20.0f;
+        box_fd.friction = 0.1f;
+        b2BodyDef box_bd;
+        // stores the points to this object on the b2Body
+        box_bd.userData.pointer = (uintptr_t)this;
+        box_bd.type = b2_dynamicBody;
+        box_bd.position.Set(x, y);
+        body = g_world->CreateBody(&box_bd);
+        body->CreateFixture(&box_fd);
+
+    }
+    bool toBeDeleted = false;
+    const void toDelete() {
+        toBeDeleted = true;
+    }
+    void OnCollision(Character* other)
+    {
+        std::cout << "Two colliding objects size " << this->size << " and size " << other->size << "\n";
+        if (this->size > other->size) {
+            this->toDelete();
+            std::cout << "Delete this object" << "\n";
+        }
+        //else {
+        //    other->toDelete();
+        //    std::cout << "Delete other object" << "\n";
+        //}
+    }
+    virtual ~Character()
+    {
+        // remove body when object is deleted
+        g_world->DestroyBody(body);
+    }
+
+private:
+    int size;
+    b2Body* body; // the body of out character
+};
+
+class MyCollisionListener : public b2ContactListener {
+public:
+    void BeginContact(b2Contact* contact) override
+    {
+        // if any of the two colliding bodies are not Characters (i.e. it is the floor object), stop processing
+        if (contact->GetFixtureA()->GetBody()->GetUserData().pointer == NULL ||
+            contact->GetFixtureB()->GetBody()->GetUserData().pointer == NULL
+            ) {
+            // stop processing
+            return;
+        }
+        // retrieve our two character objects
+        Character* character1 = (Character*)contact->GetFixtureA()->GetBody()->GetUserData().pointer;
+        Character* character2 = (Character*)contact->GetFixtureB()->GetBody()->GetUserData().pointer;
+        // call our new function
+        character1->OnCollision(character2);
+        character2->OnCollision(character1);
+    }
+};
 
 void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -44,22 +119,16 @@ void MouseButtonCallback(GLFWwindow* window, int32 button, int32 action, int32 m
     b2Vec2 pw = g_camera.ConvertScreenToWorld(ps);
 
     if (action == GLFW_RELEASE) {
-        printf("\nSpawn box");
-        b2Body* box;
-        b2PolygonShape box_shape;
-        box_shape.SetAsBox(1.0f, 1.0f);
-        b2FixtureDef box_fd;
-        box_fd.shape = &box_shape;
-        box_fd.density = 20.0f;
-        box_fd.friction = 0.1f;
-        b2BodyDef box_bd;
-        box_bd.type = b2_dynamicBody;
-        box_bd.position.Set(pw.x, pw.y);
-        box_bd.gravityScale = 1;
-        //box_bd.angularVelocity = 5;
-        //box_bd.linearVelocity = { 5, 0 };
-        box = g_world->CreateBody(&box_bd);
-        box->CreateFixture(&box_fd);
+        printf("Spawn box \n");
+        // Create a random number generator engine
+        std::default_random_engine generator(std::random_device{}());
+
+        // Create a uniform integer distribution for the range [100, 300]
+        std::uniform_int_distribution<int> distribution(100, 300);
+
+        // Generate a random integer
+        int randomValue = distribution(generator);
+        vecBoxes.emplace_back(std::make_unique<Character>(randomValue, pw.x, pw.y));
     }
 
 }
@@ -102,6 +171,9 @@ int main()
     g_world->SetDebugDraw(&g_debugDraw);
     CreateUI(g_mainWindow, 20.0f /* font size in pixels */);
 
+    // Collision listener
+    MyCollisionListener collision;
+    g_world->SetContactListener(&collision);
 
     // Some starter objects are created here, such as the ground
     b2Body* ground;
@@ -188,6 +260,18 @@ int main()
         // When we call Step(), we run the simulation for one frame
         float timeStep = 60 > 0.0f ? 1.0f / 60 : float(0.0f);
         g_world->Step(timeStep, 8, 3);
+
+        // Delete marked for delete objects
+        for (auto &uniquePtr : vecBoxes) {
+            Character* thisPtr = uniquePtr.get();
+            if (thisPtr != nullptr && thisPtr->toBeDeleted) {
+                vecBoxes.erase(std::remove_if(vecBoxes.begin(), vecBoxes.end(),
+                    [thisPtr](const std::unique_ptr<Character>& ptr) {
+                        return ptr.get() == thisPtr;
+                    }
+                ), vecBoxes.end());
+            }
+        }
 
         // Render everything on the screen
         g_world->DebugDraw();
